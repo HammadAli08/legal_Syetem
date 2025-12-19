@@ -1,15 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import nltk
-from api.routers import classification, prioritization, chat
+import os
 
-# Download NLTK data on startup
+# Configure NLTK to use /tmp for data downloads (required for Vercel)
+nltk_data_path = os.path.join("/tmp", "nltk_data")
+if not os.path.exists(nltk_data_path):
+    os.makedirs(nltk_data_path, exist_ok=True)
+nltk.data.path.append(nltk_data_path)
+
 try:
-    nltk.download('stopwords', quiet=True)
-    nltk.download('wordnet', quiet=True)
-    nltk.download('omw-1.4', quiet=True)
-except:
-    pass
+    nltk.download('stopwords', download_dir=nltk_data_path, quiet=True)
+    nltk.download('wordnet', download_dir=nltk_data_path, quiet=True)
+    nltk.download('omw-1.4', download_dir=nltk_data_path, quiet=True)
+except Exception as e:
+    print(f"NLTK download warning: {e}")
+
+from api.routers import classification, prioritization, chat
 
 app = FastAPI(
     title="Legal AI API",
