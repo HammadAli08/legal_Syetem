@@ -1,16 +1,13 @@
 import os
 import requests
 from typing import List, Dict
-from qdrant_client import QdrantClient
 from groq import Groq
 
 class RAGService:
     def __init__(self):
         self.hf_api_key = os.getenv("HUGGINGFACE_API_KEY")
-        self.qdrant_client = QdrantClient(
-            url=os.getenv("QDRANT_URL"),
-            api_key=os.getenv("QDRANT_API_KEY")
-        )
+        self.qdrant_url = os.getenv("QDRANT_URL").rstrip('/')
+        self.qdrant_api_key = os.getenv("QDRANT_API_KEY")
         self.groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         self.collection_name = os.getenv("QDRANT_COLLECTION", "legal_precedents")
         
@@ -27,21 +24,37 @@ class RAGService:
         return response.json()
     
     def retrieve_documents(self, query: str, k: int = 10) -> List[Dict]:
-        """Retrieve relevant documents from Qdrant"""
+        """Retrieve relevant documents from Qdrant via REST API (to avoid large grpcio dependency)"""
         query_vector = self.get_embeddings(query)
         
-        results = self.qdrant_client.search(
-            collection_name=self.collection_name,
-            query_vector=query_vector,
-            limit=k
-        )
+        # Qdrant REST API Search endpoint
+        search_url = f"{self.qdrant_url}/collections/{self.collection_name}/points/search"
+        
+        headers = {
+            "api-key": self.qdrant_api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "vector": query_vector,
+            "limit": k,
+            "with_payload": True
+        }
+        
+        response = requests.post(search_url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            raise Exception(f"Qdrant API error: {response.text}")
+            
+        results = response.json().get("result", [])
         
         documents = []
         for result in results:
+            payload_data = result.get("payload", {})
             documents.append({
-                "content": result.payload.get("text", ""),
-                "metadata": result.payload.get("metadata", {}),
-                "score": result.score
+                "content": payload_data.get("text", ""),
+                "metadata": payload_data.get("metadata", {}),
+                "score": result.get("score", 0)
             })
         
         return documents
@@ -49,13 +62,11 @@ class RAGService:
     def generate_response(self, query: str, context: List[Dict], chat_history: List[Dict]) -> str:
         """Generate response using Groq LLM"""
         
-        # Format context
         context_text = "\n\n".join([
             f"Document {i+1}:\n{doc['content']}" 
             for i, doc in enumerate(context[:5])
         ])
         
-        # Build messages
         messages = [
             {
                 "role": "system",
@@ -80,17 +91,14 @@ class RAGService:
             }
         ]
         
-        # Add chat history
-        for msg in chat_history[-6:]:  # Last 3 exchanges
+        for msg in chat_history[-6:]:
             messages.append(msg)
         
-        # Add current query with context
         messages.append({
             "role": "user",
             "content": f"Context:\n{context_text}\n\nQuestion: {query}"
         })
         
-        # Call Groq API
         response = self.groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
@@ -100,7 +108,6 @@ class RAGService:
         
         return response.choices[0].message.content
 
-# Singleton instance
 _rag_service = None
 
 def get_rag_service() -> RAGService:
