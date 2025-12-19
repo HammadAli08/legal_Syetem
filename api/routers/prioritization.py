@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from api.services.model_loader import load_prioritization_model
-from api.services.text_processor import preprocess_text
+import os
+from groq import Groq
 
 router = APIRouter()
 
@@ -10,27 +10,43 @@ class PrioritizationRequest(BaseModel):
 
 class PrioritizationResponse(BaseModel):
     priority: str
-    confidence: float = None
+    confidence: float = 1.0
 
 @router.post("/predict", response_model=PrioritizationResponse)
 async def predict_priority(request: PrioritizationRequest):
     """
-    Predict case urgency: High, Medium, or Low
+    Predict case urgency: High, Medium, or Low using Groq LLM
     """
     try:
-        pipeline, label_encoder = load_prioritization_model()
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         
-        # Preprocess text
-        cleaned_text = preprocess_text(request.text)
+        prompt = f"""Analyze the following legal case snippet and determine its priority/urgency. 
+Classify it into exactly one of these levels: HIGH, MEDIUM, or LOW.
+Return ONLY the priority level in uppercase.
+
+Criteria:
+- HIGH: Immediate danger, human rights violations, or time-sensitive criminal matters.
+- MEDIUM: Standard litigation, financial disputes, or ongoing civil cases.
+- LOW: Administrative matters, documentation requests, or non-urgent filings.
+
+Case Text:
+{request.text[:2000]}
+
+Priority:"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=10
+        )
         
-        if not cleaned_text:
-            raise HTTPException(status_code=400, detail="Text preprocessing resulted in empty string")
+        priority = response.choices[0].message.content.strip().upper()
+        if "HIGH" in priority: priority = "High"
+        elif "LOW" in priority: priority = "Low"
+        else: priority = "Medium"
         
-        # Predict
-        prediction = pipeline.predict([cleaned_text])
-        label = label_encoder.inverse_transform(prediction)[0]
-        
-        return PrioritizationResponse(priority=label)
+        return PrioritizationResponse(priority=priority)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prioritization error: {str(e)}")
