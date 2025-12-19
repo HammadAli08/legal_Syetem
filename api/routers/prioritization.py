@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from services.model_loader import load_prioritization_model
-from services.text_processor import preprocess_text
+from api.services.model_loader import load_prioritization_model
+from api.services.text_processor import preprocess_text
 
 router = APIRouter()
 

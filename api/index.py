@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import classification, prioritization, chat
 import nltk
+from api.routers import classification, prioritization, chat
 
 # Download NLTK data on startup
 try:
@@ -20,7 +20,7 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update with your frontend domain in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,6 +39,6 @@ def root():
         "endpoints": ["/api/classification", "/api/prioritization", "/api/chat"]
     }
 
-@app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "healthy"}

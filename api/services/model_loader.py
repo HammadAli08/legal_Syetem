@@ -8,8 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 @lru_cache(maxsize=2)
 def load_classification_model():
     """Load classification pipeline and label encoder"""
-    pipeline_path = BASE_DIR / "models" / "Case Classification" / "voting_pipeline.pkl"
-    label_path = BASE_DIR / "models" / "Case Classification" / "label_encoder.pkl"
+    pipeline_path = BASE_DIR / "models" / "case_classification" / "voting_pipeline.pkl"
+    label_path = BASE_DIR / "models" / "case_classification" / "label_encoder.pkl"
     
     with open(pipeline_path, "rb") as f:
         pipeline = pickle.load(f)
@@ -22,8 +22,8 @@ def load_classification_model():
 @lru_cache(maxsize=2)
 def load_prioritization_model():
     """Load prioritization pipeline and label encoder"""
-    pipeline_path = BASE_DIR / "models" / "Case Prioritization" / "stacking_pipeline.pkl"
-    label_path = BASE_DIR / "models" / "Case Prioritization" / "label_encoder.pkl"
+    pipeline_path = BASE_DIR / "models" / "case_prioritization" / "stacking_pipeline.pkl"
+    label_path = BASE_DIR / "models" / "case_prioritization" / "label_encoder.pkl"
     
     with open(pipeline_path, "rb") as f:
         pipeline = pickle.load(f)
